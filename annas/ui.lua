@@ -148,12 +148,14 @@ function Ui.showSettingsDialog()
     local foo, _ = util.splitFilePathName(full_source_path):gsub("/+", "/")
     local plugin_path, _ = foo:gsub("/annas/", "")
 
-    local settings_menu
-    local menu_items = {
-        {
+    local dialog
+    dialog = ButtonDialog:new{
+        title = T("Settings"),
+        buttons = {
+            {{
             text = T("Refresh Mirrors"),
-            help_text = T("Fetch the latest active domains from Wikipedia."),
             callback = function()
+                _closeAndUntrackDialog(dialog)
                 local loading_msg = Ui.showLoadingMessage(T("Fetching latest mirrors from Wikipedia..."))
                 UIManager:nextTick(function()
                     local ok, msg = force_refresh_domains()
@@ -165,18 +167,18 @@ function Ui.showSettingsDialog()
                     end
                 end)
             end,
-        },
-        {
+            }},{{
             text = T("Set Download Directory"),
-            help_text = T("Change where downloaded books are saved."),
             callback = function()
+                _closeAndUntrackDialog(dialog)
                 Ui.showDownloadDirectoryDialog()
             end,
-        },
-        {
+            }},{{
             text = T("Check for Updates"),
-            help_text = T("Check GitHub for newer versions of this plugin."),
+            keep_menu_open = false,
+            separator = true,
             callback = function()
+                _closeAndUntrackDialog(dialog)
                 if plugin_path then
                     Ota.startUpdateProcess(plugin_path)
                 else
@@ -184,34 +186,20 @@ function Ui.showSettingsDialog()
                     Ui.showErrorMessage(T("Error: Plugin path not found. Cannot check for updates."))
                 end
             end,
-        },
-        {
-            text = "---", -- separator
-        },
-        {
+            }},{{
             text = T("Back"),
-            mandatory = "\u{21A9}",
+            id = "close",
             callback = function()
-                if settings_menu then UIManager:close(settings_menu) end
+                _closeAndUntrackDialog(dialog)
+                if _plugin_instance then
+                    Ui.showSearchDialog(_plugin_instance)
+                end
             end,
+            }}
         }
     }
-
-    settings_menu = Menu:new{
-        title = T("Anna's Archive Settings"),
-        item_table = menu_items,
-        show_captions = true,
-        is_popout = false,
-        is_borderless = true,
-        title_bar_fm_style = true,
-        title_bar_left_icon = "copt_b_left_arrow",
-    }
     
-    function settings_menu:onLeftButtonTap()
-        UIManager:close(self)
-    end
-
-    _showAndTrackDialog(settings_menu)
+    _showAndTrackDialog(dialog)
 end
 
 local function _showMultiSelectionDialog(parent_ui, title, setting_key, options_list, ok_callback, is_single)
