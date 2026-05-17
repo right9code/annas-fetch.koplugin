@@ -626,62 +626,109 @@ function download_book(book, path)
         ".bz/",
     }
 
-    for _, lgli_ext in ipairs(lgli_exts) do
-        ::continue::
-
-        local filename = path .. "/" .. sanitize_name(book.title) .. '_'.. sanitize_name(book.author) .. '.' .. book.format
-        local lgli_url = "https://libgen" .. lgli_ext
-        print(book.title)
-
-        if not book.download then
-            print('no source available')
-            return "Failed, no download source available [lgli, zlib]."
-        end
-        
-        -- Check if book is available on Library Genesis
-        if string.find(book.download, 'lgli', 1, true) then
-            local download_page = lgli_url .. "ads.php?md5=" .. book.md5
-            print('download page on lgli: ', download_page)
-            local status, data = check_url(download_page)
-
-            if status == "network_error" then
-                return "Failed, please check connection, Network/HTTP error: " .. (data or "")
-            elseif status == "success" then
-                print("Download page fetched successfully!")
-
-                if not data then
-                    print("No data received from download page")
-                    goto continue_download
-                end
-
-                -- Extract the actual download link from the page
-                local download_link = data:match('href="([^"]*get%.php[^"]*)"')
-
-                if download_link then
-                    print("Found final link:", download_link)
-                    local download_url = lgli_url .. download_link
-
-                    local status, data = check_url(download_url )
-                    print('status:\n', status)
-                    print(filename)
-                    local status, msg = save_file_bytes(filename, data)
-                    print(msg)
-                    return filename
-
-                else
-                    print("No matching link found.")
-                end
-
-            end
-            
-        else
-            print('book not available on libgen')
-        end
-        
-        ::continue_download::
+    if not book.download then
+        print('no source available')
+        return "Failed, no download source available [lgli, zlib]."
     end
-    
-    return 'Failed, could not fetch download link from source page.'
+
+    local fmt = (book.format or "unknown"):lower()
+    local filename = path .. "/" .. sanitize_name(book.title) .. "_" .. sanitize_name(book.author) .. "." .. fmt
+
+    for _, lgli_ext in ipairs(lgli_exts) do
+        local lgli_url = "https://libgen" .. lgli_ext
+        print("=== Trying mirror: " .. lgli_url)
+
+        -- Only try libgen if this source is available
+        if not string.find(book.download, 'lgli', 1, true) then
+            print('book not available on libgen, skipping')
+            break
+        end
+
+        local download_page_url = lgli_url .. "ads.php?md5=" .. book.md5
+        print('download page: ', download_page_url)
+        local status, page_data = check_url(download_page_url)
+
+        if status ~= "success" or not page_data then
+            print("=== ads page failed on " .. lgli_url .. ", trying next mirror")
+            goto continue_mirror
+        end
+
+        -- Check ads page isn't a DDoS/captcha wall
+        local page_lower = page_data:lower()
+        if page_lower:match("ddos%-guard") or page_lower:match("access denied") or page_lower:match("cloudflare") then
+            print("=== DDoS/block detected on " .. lgli_url .. ", trying next mirror")
+            goto continue_mirror
+        end
+
+        do
+            -- Extract the actual download link from the ads page
+            local download_link = page_data:match('href="([^"]*get%.php[^"]*)"')
+
+            if not download_link then
+                print("=== No get.php link found on " .. lgli_url .. ", trying next mirror")
+                goto continue_mirror
+            end
+
+            -- Fix potential double-slash: strip trailing / from base, ensure link starts with /
+            local base = lgli_url:gsub("/$", "")
+            if not download_link:match("^/") then
+                download_link = "/" .. download_link
+            end
+            local download_url = base .. download_link
+            print("=== Final download URL: " .. download_url)
+
+            local dl_status, dl_data = check_url(download_url)
+
+            if dl_status ~= "success" or not dl_data then
+                print("=== File download failed on " .. lgli_url .. ", trying next mirror")
+                goto continue_mirror
+            end
+
+            -- Reject HTML error pages saved as book files (too small or is HTML)
+            local header = dl_data:sub(1, 16):lower()
+            local is_html = header:match("^<!doctyp") or header:match("^<html") or header:match("^<?xml")
+            local too_small = (#dl_data < 10240)  -- under 10 kB is always an error page
+
+            if is_html or too_small then
+                print(string.format("=== Rejected bad file from %s: %d bytes, is_html=%s",
+                    lgli_url, #dl_data, tostring(is_html)))
+                goto continue_mirror
+            end
+
+            -- Validate magic bytes for known formats
+            local file_header = dl_data:sub(1, 8)
+            local valid = true
+            if fmt == "epub" or fmt == "zip" or fmt == "cbz" or fmt == "azw3" then
+                valid = (file_header:sub(1,2) == "PK")
+                if not valid then
+                    print("=== Expected ZIP/EPUB magic (PK) but got garbage — trying next mirror")
+                end
+            elseif fmt == "pdf" then
+                valid = (file_header:sub(1,4) == "%PDF")
+                if not valid then
+                    print("=== Expected PDF magic but got garbage — trying next mirror")
+                end
+            end
+
+            if not valid then
+                goto continue_mirror
+            end
+
+            -- All checks passed — save file
+            local ok, msg = save_file_bytes(filename, dl_data)
+            if ok then
+                print(string.format("=== Download success: %s (%d bytes)", filename, #dl_data))
+                return filename
+            else
+                pcall(os.remove, filename)
+                return "Failed, could not save file: " .. tostring(msg)
+            end
+        end
+
+        ::continue_mirror::
+    end
+
+    return "Failed, all Library Genesis mirrors returned invalid content or an error page. Try changing DNS to 1.1.1.1."
 end
 
 -- Main execution block (runs when script is executed directly)
