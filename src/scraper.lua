@@ -1,5 +1,6 @@
 local Config = require("annas.config")
 local Api = require('annas.api')
+local socketutil = require("socketutil")
 
 -- Cache configuration
 local CACHE_FILE = "annas_domains_cache.txt"
@@ -389,17 +390,8 @@ local function fetch_with_api(url, custom_sink)
 end
 
 -- Main HTTP request function with three-tier fallback system
-function check_url(url, custom_sink)
+function check_url(url)
     print('=== DEBUG: check_url called with:', url)
-
-    if custom_sink then
-        print('=== Using custom sink, skipping external commands and LuaSocket')
-        local api_status, api_data = fetch_with_api(url, custom_sink)
-        if api_status == "success" then
-            return "success", api_data
-        end
-        return "network_error", nil
-    end
     
     -- Method 1: Try external commands (curl/wget) - most reliable
     local ext_status, ext_data = fetch_with_external_command(url)
@@ -698,41 +690,68 @@ function download_book(book, path, progress_callback, is_cancelled_func)
             print("=== Final download URL: " .. download_url)
 
             local temp_filename = filename .. ".tmp"
-            local f = io.open(temp_filename, "wb")
-            local written = 0
-            
-            local custom_sink = function(chunk, err)
-                if is_cancelled_func and is_cancelled_func() then
-                    return nil, "cancelled"
+            local dl_data = nil
+            local download_ok = false
+
+            -- Method A: KOReader-native socketutil sink with progress (pure Lua, works on Kobo)
+            do
+                local f = io.open(temp_filename, "wb")
+                if f then
+                    local file_sink = socketutil.file_sink(f)
+                    local sink_to_use = file_sink
+
+                    -- Chain progress callback if available (KOReader 2025.08+)
+                    if progress_callback and type(socketutil.chainSinkWithProgressCallback) == "function" then
+                        sink_to_use = socketutil.chainSinkWithProgressCallback(file_sink, progress_callback)
+                    end
+
+                    print("=== Trying KOReader-native download with progress...")
+                    local http_result = Api.makeHttpRequest{
+                        url = download_url,
+                        method = "GET",
+                        headers = {
+                            ["User-Agent"] = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
+                        },
+                        sink = sink_to_use,
+                        timeout = {30, 300},
+                        redirect = true,
+                    }
+
+                    if http_result and http_result.status_code == 200 then
+                        print("=== KOReader-native download succeeded")
+                        download_ok = true
+                    else
+                        print("=== KOReader-native download failed: " .. tostring(http_result and http_result.error or "unknown"))
+                        pcall(os.remove, temp_filename)
+                    end
                 end
-                
-                if chunk then
-                    written = written + #chunk
-                    f:write(chunk)
-                    if progress_callback then progress_callback(written) end
+            end
+
+            -- Method B: Fallback to check_url (curl/wget/luasocket, no progress but reliable)
+            if not download_ok then
+                print("=== Falling back to check_url for download (no progress bar)...")
+                local dl_status
+                dl_status, dl_data = check_url(download_url)
+
+                if dl_status ~= "success" or not dl_data then
+                    print("=== File download failed on " .. lgli_url .. ", trying next mirror")
+                    goto continue_mirror
                 end
-                return 1
+
+                -- Write to temp file
+                local ok, msg = save_file_bytes(temp_filename, dl_data)
+                if not ok then
+                    print("=== Failed to write temp file: " .. tostring(msg))
+                    goto continue_mirror
+                end
+                download_ok = true
+                dl_data = nil -- free memory
             end
 
-            local dl_status, _ = check_url(download_url, custom_sink)
-            f:close()
-
-            if is_cancelled_func and is_cancelled_func() then
-                print("=== Download cancelled by user")
-                os.remove(temp_filename)
-                return "Failed, download cancelled by user."
-            end
-
-            if dl_status ~= "success" then
-                print("=== File download failed on " .. lgli_url .. ", trying next mirror")
-                os.remove(temp_filename)
-                goto continue_mirror
-            end
-
-            -- Now read the temp file to check magic bytes
+            -- Validate the downloaded temp file
             local tf = io.open(temp_filename, "rb")
             if not tf then
-                print("=== Could not open temp file")
+                print("=== Could not open temp file for validation")
                 goto continue_mirror
             end
             
