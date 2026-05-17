@@ -418,7 +418,7 @@ function scraper(query)
 
     local domain_counter = 0
     local protocols = {"https://"}
-    local protocol_counter = 0
+    local protocol_counter = 1
     local page = "1"
 
     if not query then
@@ -461,16 +461,16 @@ function scraper(query)
     if domain_counter > #aa_domains then
         domain_counter = 1
         protocol_counter = protocol_counter + 1
-        if protocol_counter >= #protocols then
+        if protocol_counter > #protocols then
             return "All domains and protocols failed. Anna's Archive may be blocked or no working HTTP method available."
         end
     end
     
-    local annas_url = protocols[protocol_counter + 1] .. aa_domains[domain_counter] .. "/"
+    local annas_url = protocols[protocol_counter] .. aa_domains[domain_counter] .. "/"
     local url = string.format("%ssearch?page=%s&q=%s%s", annas_url, page, encoded_query, filters)
     
     print('Attempting URL:', url)
-    print('Protocol:', protocols[protocol_counter + 1], 'Domain:', aa_domains[domain_counter])
+    print('Protocol:', protocols[protocol_counter], 'Domain:', aa_domains[domain_counter])
     
     local status, data = check_url(url)
 
@@ -500,9 +500,9 @@ function scraper(query)
         -- Split HTML into book entries using consistent pattern
         local split_pattern = 'pt-3 pb-3 border-b last:border-b-0 border-gray-100'
         
-        result_html = split_pattern .. data
+        local result_html = split_pattern .. data
         
-        segments = {}
+        local segments = {}
         
         local start_pos = 1
         
@@ -526,7 +526,7 @@ function scraper(query)
         end
 
         local book_lst = {}
-        book_count = 0 
+        local book_count = 0
 
         for i, entry in ipairs(segments) do
             print("\n---- Entry #" .. i .. " ----\n")
@@ -630,7 +630,7 @@ function download_book(book, path)
         ::continue::
 
         local filename = path .. "/" .. sanitize_name(book.title) .. '_'.. sanitize_name(book.author) .. '.' .. book.format
-        lgli_url = "https://libgen" .. lgli_ext
+        local lgli_url = "https://libgen" .. lgli_ext
         print(book.title)
 
         if not book.download then
@@ -640,7 +640,7 @@ function download_book(book, path)
         
         -- Check if book is available on Library Genesis
         if string.find(book.download, 'lgli', 1, true) then
-            download_page = lgli_url .. "ads.php?md5=" .. book.md5
+            local download_page = lgli_url .. "ads.php?md5=" .. book.md5
             print('download page on lgli: ', download_page)
             local status, data = check_url(download_page)
 
