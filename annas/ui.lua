@@ -734,108 +734,7 @@ function Ui.confirmOpenBook(filename, has_wifi_toggle, default_turn_off_wifi, ok
     showDialog()
 end
 
-function Ui.showRecommendedBooksMenu(ui_self, books, plugin_self)
-    local menu_items = {}
-    for _, book in ipairs(books) do
-        local title = book.title or T("Untitled")
-        local author = book.author or T("Unknown Author")
-        local menu_text = string.format("%s - %s", title, author)
-        table.insert(menu_items, {
-            text = menu_text,
-            callback = function()
-                plugin_self:onSelectRecommendedBook(book)
-            end,
-        })
-    end
 
-    if #menu_items == 0 then
-        Ui.showInfoMessage(T("No recommended books found, please try again. Sometimes this requires a couple of retries."))
-        return
-    end
-    local menu = Menu:new({
-        title = T("Anna's Archive Recommended Books"),
-        item_table = menu_items,
-        items_per_page = 10,
-        show_captions = true,
-        parent = ui_self.document_menu_parent_holder,
-        is_popout = false,
-        is_borderless = true,
-        title_bar_fm_style = true,
-        multilines_show_more_text = true,
-    })
-    _showAndTrackDialog(menu)
-end
-
-function Ui.showMostPopularBooksMenu(ui_self, books, plugin_self)
-    local menu_items = {}
-    for _, book in ipairs(books) do
-        local title = book.title or T("Untitled")
-        local author = book.author or T("Unknown Author")
-        local menu_text = string.format("%s - %s", title, author)
-        table.insert(menu_items, {
-            text = menu_text,
-            callback = function()
-                plugin_self:onSelectRecommendedBook(book)
-            end,
-        })
-    end
-
-    if #menu_items == 0 then
-        Ui.showInfoMessage(T("No most popular books found. The list was empty, please try again."))
-        return
-    end
-
-    local menu = Menu:new({
-        title = T("Anna's Archive Most Popular Books"),
-        item_table = menu_items,
-        items_per_page = 10,
-        show_captions = true,
-        parent = ui_self.document_menu_parent_holder,
-        is_popout = false,
-        is_borderless = true,
-        title_bar_fm_style = true,
-        multilines_show_more_text = true
-    })
-    _showAndTrackDialog(menu)
-end
-
-function Ui.confirmShowRecommendedBooks(ok_callback)
-    if _plugin_instance and _plugin_instance.dialog_manager then
-        _plugin_instance.dialog_manager:showConfirmDialog({
-            text = T("Fetch most recommended book from Anna's Archive?"),
-            ok_text = T("OK"),
-            cancel_text = T("Cancel"),
-            ok_callback = ok_callback,
-        })
-    else
-        local dialog = ConfirmBox:new{
-            text = T("Fetch most recommended book from Anna's Archive?"),
-            ok_text = T("OK"),
-            cancel_text = T("Cancel"),
-            ok_callback = ok_callback,
-        }
-        UIManager:show(dialog)
-    end
-end
-
-function Ui.confirmShowMostPopularBooks(ok_callback)
-    if _plugin_instance and _plugin_instance.dialog_manager then
-        _plugin_instance.dialog_manager:showConfirmDialog({
-            text = T("Fetch most popular books from Anna's Archive?"),
-            ok_text = T("OK"),
-            cancel_text = T("Cancel"),
-            ok_callback = ok_callback,
-        })
-    else
-        local dialog = ConfirmBox:new{
-            text = T("Fetch most popular books from Anna's Archive?"),
-            ok_text = T("OK"),
-            cancel_text = T("Cancel"),
-            ok_callback = ok_callback,
-        }
-        UIManager:show(dialog)
-    end
-end
 
 function Ui.createSingleBookMenu(ui_self, title, menu_items)
     local menu = Menu:new{
@@ -1108,26 +1007,7 @@ function Ui.showAllTimeoutConfigDialog(parent_ui)
                     Config.getBookDetailsTimeout, Config.setBookDetailsTimeout, refreshMainDialog)
             end
         },
-        {
-            text = T("Recommended books timeouts"),
-            mandatory_func = function()
-                return Config.formatTimeoutForDisplay(Config.getRecommendedTimeout())
-            end,
-            callback = function()
-                Ui.showTimeoutConfigDialog(parent_ui, T("Recommended books"), Config.SETTINGS_TIMEOUT_RECOMMENDED_KEY,
-                    Config.getRecommendedTimeout, Config.setRecommendedTimeout, refreshMainDialog)
-            end
-        },
-        {
-            text = T("Popular books timeouts"),
-            mandatory_func = function()
-                return Config.formatTimeoutForDisplay(Config.getPopularTimeout())
-            end,
-            callback = function()
-                Ui.showTimeoutConfigDialog(parent_ui, T("Popular books"), Config.SETTINGS_TIMEOUT_POPULAR_KEY,
-                    Config.getPopularTimeout, Config.setPopularTimeout, refreshMainDialog)
-            end
-        },
+
         {
             text = T("Download timeouts"),
             mandatory_func = function()

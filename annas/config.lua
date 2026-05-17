@@ -18,8 +18,6 @@ Config.SETTINGS_TURN_OFF_WIFI_AFTER_DOWNLOAD_KEY = "annas_turn_off_wifi_after_do
 Config.SETTINGS_TIMEOUT_LOGIN_KEY = "annas_timeout_login"
 Config.SETTINGS_TIMEOUT_SEARCH_KEY = "annas_timeout_search"
 Config.SETTINGS_TIMEOUT_BOOK_DETAILS_KEY = "annas_timeout_book_details"
-Config.SETTINGS_TIMEOUT_RECOMMENDED_KEY = "annas_timeout_recommended"
-Config.SETTINGS_TIMEOUT_POPULAR_KEY = "annas_timeout_popular"
 Config.SETTINGS_TIMEOUT_DOWNLOAD_KEY = "annas_timeout_download"
 Config.SETTINGS_TIMEOUT_COVER_KEY = "annas_timeout_cover"
 Config.CREDENTIALS_FILENAME = "annas_credentials.lua"
@@ -32,8 +30,6 @@ Config.SEARCH_RESULTS_LIMIT = 30
 Config.TIMEOUT_LOGIN = { 10, 15 }        -- Login operations
 Config.TIMEOUT_SEARCH = { 15, 15 }       -- Search operations
 Config.TIMEOUT_BOOK_DETAILS = { 15, 5 }  -- Book details operations
-Config.TIMEOUT_RECOMMENDED = { 30, 15 }  -- Recommended books operations
-Config.TIMEOUT_POPULAR = { 30, 15 }      -- Popular books operations
 Config.TIMEOUT_DOWNLOAD = { 15, -1 }    -- Book download operations (infinite total timeout if data flows)
 Config.TIMEOUT_COVER = { 5, 15 }        -- Cover image operations
 
@@ -205,17 +201,7 @@ function Config.getBookDetailsUrl(book_id, book_hash)
     return base .. string.format("/eapi/book/%s/%s", book_id, book_hash)
 end
 
-function Config.getRecommendedBooksUrl()
-    local base = Config.getBaseUrl()
-    if not base then return nil end
-    return base .. "/eapi/user/book/recommended"
-end
 
-function Config.getMostPopularBooksUrl()
-    local base = Config.getBaseUrl()
-    if not base then return nil end
-    return base .. "/eapi/book/most-popular"
-end
 
 function Config.getSetting(key, default)
     return G_reader_settings:readSetting(key) or default
@@ -330,13 +316,7 @@ function Config.getBookDetailsTimeout()
     return Config.getTimeoutConfig(Config.SETTINGS_TIMEOUT_BOOK_DETAILS_KEY, Config.TIMEOUT_BOOK_DETAILS)
 end
 
-function Config.getRecommendedTimeout()
-    return Config.getTimeoutConfig(Config.SETTINGS_TIMEOUT_RECOMMENDED_KEY, Config.TIMEOUT_RECOMMENDED)
-end
 
-function Config.getPopularTimeout()
-    return Config.getTimeoutConfig(Config.SETTINGS_TIMEOUT_POPULAR_KEY, Config.TIMEOUT_POPULAR)
-end
 
 function Config.getDownloadTimeout()
     return Config.getTimeoutConfig(Config.SETTINGS_TIMEOUT_DOWNLOAD_KEY, Config.TIMEOUT_DOWNLOAD)
@@ -366,13 +346,7 @@ function Config.setBookDetailsTimeout(block_timeout, total_timeout)
     Config.setTimeoutConfig(Config.SETTINGS_TIMEOUT_BOOK_DETAILS_KEY, block_timeout, total_timeout)
 end
 
-function Config.setRecommendedTimeout(block_timeout, total_timeout)
-    Config.setTimeoutConfig(Config.SETTINGS_TIMEOUT_RECOMMENDED_KEY, block_timeout, total_timeout)
-end
 
-function Config.setPopularTimeout(block_timeout, total_timeout)
-    Config.setTimeoutConfig(Config.SETTINGS_TIMEOUT_POPULAR_KEY, block_timeout, total_timeout)
-end
 
 function Config.setDownloadTimeout(block_timeout, total_timeout)
     Config.setTimeoutConfig(Config.SETTINGS_TIMEOUT_DOWNLOAD_KEY, block_timeout, total_timeout)
