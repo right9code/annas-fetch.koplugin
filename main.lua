@@ -487,33 +487,43 @@ function Annas:performSearch(query)
         return
     end
 
-    local function attemptSearch(retry_on_auth_error)
+    local loading_msg = Ui.showLoadingMessage(T("Searching for \"") .. query .. "\"...")
 
-        local res = scraper(query)
+    local task = function()
+        return scraper(query)
+    end
 
-        local loading_msg = Ui.showLoadingMessage(T("Searching for \"") .. query .. "\"...")
+    local on_success = function(res)
+        Ui.closeMessage(loading_msg)
 
-        if #res == 0 then
-            Ui.closeMessage(loading_msg)
+        -- scraper() can return an error string on total failure
+        if type(res) == "string" then
+            Ui.showErrorMessage(res)
+            return
+        end
+
+        if type(res) ~= "table" or #res == 0 then
             Ui.showInfoMessage(T("No results found for \"") .. query .. "\".")
             return
         end
 
-        Ui.closeMessage(loading_msg)
         logger.info(string.format("Annas:performSearch - Fetch successful. Results: %d", #res))
         self.current_search_query = query
-        --self.current_search_api_page_loaded = current_page_to_search
         self.all_search_results_data = res
-        --self.has_more_api_results = true
 
         UIManager:nextTick(function()
             self:displaySearchResults(self.all_search_results_data, self.current_search_query)
         end)
-
-        AsyncHelper.run(task, loading_msg)
     end
 
-    attemptSearch()
+    local on_error = function(err_msg)
+        Ui.closeMessage(loading_msg)
+        Ui.showRetryErrorDialog(tostring(err_msg), T("Search"), function()
+            self:performSearch(query)
+        end, function() end, loading_msg)
+    end
+
+    AsyncHelper.run(task, on_success, on_error, loading_msg)
 end
 
 function Annas:displaySearchResults(initial_book_data_list, query_string)
@@ -719,7 +729,6 @@ function Annas:downloadBook(book)
             else
                 local fail_msg = api_result
                 Ui.showErrorMessage(fail_msg)
-                pcall(os.remove, target_filepath)
             end
         end
 
@@ -739,7 +748,6 @@ function Annas:downloadBook(book)
             if string.find(error_string, "Download limit reached or file is an HTML page", 1, true) then
                 Ui.closeMessage(loading_msg)
                 Ui.showErrorMessage(T("Download limit reached. Please try again later or check your account."))
-                pcall(os.remove, target_filepath)
                 return
             end
             
@@ -750,8 +758,7 @@ function Annas:downloadBook(book)
                 loading_msg = new_loading_msg
                 AsyncHelper.run(task_download, on_success_download, on_error_download, loading_msg)
             end, function(final_err_msg)
-                -- Cancel callback - user already knows about the error
-                pcall(os.remove, target_filepath)
+                -- Cancel callback
             end, loading_msg)
         end
 
