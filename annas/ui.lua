@@ -153,6 +153,21 @@ function Ui.showSettingsDialog()
         input = def_input,
         buttons = {
             {{
+            text = T("Refresh Mirrors"),
+            callback = function()
+                _closeAndUntrackDialog(dialog)
+                local loading_msg = Ui.showLoadingMessage(T("Fetching latest mirrors from Wikipedia..."))
+                UIManager:nextTick(function()
+                    local ok, msg = force_refresh_domains()
+                    Ui.closeMessage(loading_msg)
+                    if ok then
+                        Ui.showFullTextDialog(T("Mirrors Refreshed"), msg)
+                    else
+                        Ui.showErrorMessage(msg)
+                    end
+                end)
+            end,
+            }},{{
             text = T("Set Download Directory"),
             callback = function()
                 _closeAndUntrackDialog(dialog)
@@ -172,47 +187,10 @@ function Ui.showSettingsDialog()
                     Ui.showErrorMessage(T("Error: Plugin path not found. Cannot check for updates."))
                 end
             end,
-            --[[callback = function()
-                _closeAndUntrackDialog(dialog)
-                local full_source_path = debug.getinfo(1, "S").source
-                if full_source_path:sub(1,1) == "@" then
-                    full_source_path = full_source_path:sub(2)
-                end
-                local plugin_path, _ = util.splitFilePathName(full_source_path):gsub("/+", "/")
-
-                if plugin_path then
-
-                    resp = check_version(plugin_path)
-
-                    if resp.err == 0 then
-                        Ui.showInfoMessage(T(resp.msg))
-                        resp = download_update(resp.sha)
-
-                        if resp.err == 0 then
-                            Ui.showInfoMessage(T(resp.msg))
-                        else
-                            Ui.showErrorMessage(T(resp.msg))
-                        end
-
-                    elseif resp.err == 1 then
-                        Ui.showErrorMessage(T(resp.msg))
-                    else
-                        Ui.showInfoMessage(T(resp.msg))
-                    end
-
-                else
-                    logger.err("ZLibrary: Plugin path not available for OTA update.")
-                    Ui.showErrorMessage(T("Error: Plugin path not found. Cannot check for updates."))
-                end
-            end,]]--
             }}
         }
     }
     _showAndTrackDialog(dialog)
-    
-    
-    
-    
 end
 
 local function _showMultiSelectionDialog(parent_ui, title, setting_key, options_list, ok_callback, is_single)
@@ -493,7 +471,7 @@ function Ui.createBookMenuItem(book_data, parent_annas_instance)
     }
 end
 
-function Ui.createSearchResultsMenu(parent_ui_ref, query_string, initial_menu_items, on_goto_page_handler)
+function Ui.createSearchResultsMenu(parent_ui_ref, query_string, initial_menu_items)
     local search_order_name = Config.getSearchOrderName()
     local menu = Menu:new{
         title = _colon_concat(T("Search Results"), query_string),
@@ -502,7 +480,6 @@ function Ui.createSearchResultsMenu(parent_ui_ref, query_string, initial_menu_it
         parent = parent_ui_ref,
         items_per_page = 10,
         show_captions = true,
-        onGotoPage = on_goto_page_handler,
         is_popout = false,
         is_borderless = true,
         title_bar_fm_style = true,

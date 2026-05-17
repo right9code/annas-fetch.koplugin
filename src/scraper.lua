@@ -144,6 +144,16 @@ local function get_annas_archive_domains()
     }
 end
 
+function force_refresh_domains()
+    print("=== Force refreshing domains from Wikipedia ===")
+    os.remove(CACHE_FILE)
+    local domains = fetch_domains_from_wikipedia()
+    if not domains or #domains == 0 then
+        return false, "Failed to fetch active mirrors from Wikipedia. Check your internet connection."
+    end
+    return true, "Successfully refreshed mirrors! Found " .. #domains .. " active domains:\n" .. table.concat(domains, "\n")
+end
+
 
 local function extract_md5_and_link(line)
     -- Extract MD5 hash from href="/md5/<hash>" pattern
