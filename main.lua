@@ -654,24 +654,32 @@ function Annas:downloadBook(book)
         local user_session = Config.getUserSession()
         local referer_url = book.href and Config.getBookUrl(book.href) or nil
 
-        local loading_msg = Ui.showLoadingMessage(T("Downloading, please wait …"))
+        local loading_msg, pb_callback = Ui.showBookDownloadProgress(book)
 
         local function task_download()
             local last_update_time = 0
             
             local progress_callback = function(written_bytes)
-                local current_time = os.time()
-                -- Update UI at most once per second to prevent flickering/lag
-                if current_time - last_update_time >= 1 then
-                    local mb = string.format("%.1f", written_bytes / (1024 * 1024))
-                    local text = string.format("%s\n%s MB", T("Downloading, please wait …"), mb)
+                if pb_callback then
+                    -- If we have the native progress bar, use its report callback
                     UIManager:nextTick(function()
-                        if loading_msg then
-                            loading_msg:setText(text)
-                            UIManager:setDirty(nil, "ui")
-                        end
+                        pb_callback(written_bytes)
+                        UIManager:setDirty(nil, "ui")
                     end)
-                    last_update_time = current_time
+                else
+                    -- Fallback to InfoMessage text updating
+                    local current_time = os.time()
+                    if current_time - last_update_time >= 1 then
+                        local mb = string.format("%.1f", written_bytes / (1024 * 1024))
+                        local text = string.format("%s\n%s MB", T("Downloading, please wait …"), mb)
+                        UIManager:nextTick(function()
+                            if loading_msg then
+                                loading_msg:setText(text)
+                                UIManager:setDirty(nil, "ui")
+                            end
+                        end)
+                        last_update_time = current_time
+                    end
                 end
             end
             

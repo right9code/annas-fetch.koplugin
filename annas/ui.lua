@@ -67,9 +67,61 @@ function Ui.showErrorMessage(text)
 end
 
 function Ui.showLoadingMessage(text)
-    local message = InfoMessage:new{ text = text, timeout = 0 }
+    local message = InfoMessage:new{ 
+        text = string.format("\u{23f3}  %s", text),
+        dismissable = false,
+        show_icon = false,
+        force_one_line = true,
+    }
     UIManager:show(message)
     return message
+end
+
+function Ui.showBookDownloadProgress(book, custom_title)
+    local title = custom_title or T("Downloading…")
+    
+    local ok, ProgressbarDialog = pcall(require, "ui/widget/progressbardialog")
+    if ok and ProgressbarDialog then
+        -- Default estimate if size is unavailable (10MB)
+        local max_bytes = 10 * 1024 * 1024
+        
+        -- Try to parse size string if present (e.g. "4.5MB")
+        local size_str = "Unknown Size"
+        if type(book.size) == "string" and book.size ~= "N/A" then
+            size_str = book.size
+            local num = tonumber(book.size:match("([%d.]+)"))
+            if num and book.size:match("MB") then
+                max_bytes = num * 1024 * 1024
+            elseif num and book.size:match("KB") then
+                max_bytes = num * 1024
+            end
+        end
+
+        local progressbar_dialog = ProgressbarDialog:new{
+            title = title,
+            subtitle = string.format("%s (%s)", book.title, size_str),
+            progress_max = max_bytes,
+            refresh_time_seconds = 1
+        }
+        
+        -- fix progress bar fill color on Koreader 2025.08+
+        if progressbar_dialog.progress_bar then  
+            progressbar_dialog.progress_bar.fillcolor = require("ffi/blitbuffer").COLOR_BLACK
+        end
+
+        local report_callback = function(progress)
+            -- if download exceeds our estimated max_bytes, bump max_bytes slightly so it doesn't crash
+            if progress > progressbar_dialog.progress_max then
+                progressbar_dialog.progress_max = progress * 1.5
+            end
+            progressbar_dialog:reportProgress(progress)
+        end
+        
+        progressbar_dialog:show()
+        return progressbar_dialog, report_callback
+    else
+        return Ui.showLoadingMessage(title), nil
+    end
 end
 
 function Ui.closeMessage(message_widget)
