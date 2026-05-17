@@ -1,6 +1,7 @@
 local Config = require("annas.config")
 local Api = require('annas.api')
-local socketutil = require("socketutil")
+local socketutil_ok, socketutil = pcall(require, "socketutil")
+if not socketutil_ok then socketutil = nil end
 
 -- Cache configuration
 local CACHE_FILE = "annas_domains_cache.txt"
@@ -694,6 +695,7 @@ function download_book(book, path, progress_callback, is_cancelled_func)
             local download_ok = false
 
             -- Method A: KOReader-native socketutil sink with progress (pure Lua, works on Kobo)
+            if socketutil and socketutil.file_sink then
             do
                 local f = io.open(temp_filename, "wb")
                 if f then
@@ -726,6 +728,7 @@ function download_book(book, path, progress_callback, is_cancelled_func)
                     end
                 end
             end
+            end -- if socketutil
 
             -- Method B: Fallback to check_url (curl/wget/luasocket, no progress but reliable)
             if not download_ok then
