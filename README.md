@@ -12,8 +12,11 @@ Tested on Kindle Paperwhite 11th gen running KOReader.
 ## What's Different from the Original
 
 - ✅ **Conflict fix**: Internal modules renamed from `zlibrary.*` → `annas.*` — both Anna's Archive and Z-Library plugins can be installed simultaneously without crashing
-- ✅ **Fresh codebase**: Clean git history, actively maintained
-- ✅ Version: `0.1.8-r1`
+- ✅ **Native Progress Bar**: Features a beautiful KOReader-native progress bar with a working cancellation button.
+- ✅ **Gesture Shortcuts**: Easily assign a gesture shortcut (like a corner tap) to directly open the Anna's Archive Search box.
+- ✅ **Pure Lua Streaming**: Downloads stream directly to disk without bloating RAM, working consistently across all KOReader-supported devices (Kobo/PocketBook).
+- ✅ **Fresh codebase**: Clean git history, actively maintained, and fully purged of old Z-Library remnants.
+- ✅ Version: `1.0.0`
 
 ---
 
