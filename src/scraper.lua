@@ -313,7 +313,7 @@ local function fetch_with_external_command(url)
 end
 
 -- Try KOReader's API with multiple header configurations
-local function fetch_with_api(url)
+local function fetch_with_api(url, custom_sink)
     print('=== Trying Api.makeHttpRequest for:', url)
     
     local user_session = Config.getUserSession()
@@ -355,6 +355,7 @@ local function fetch_with_api(url)
                 method = "GET",
                 headers = headers,
                 timeout = 20,
+                sink = custom_sink,
             }
         end)
         
@@ -374,11 +375,11 @@ local function fetch_with_api(url)
         end
         
         local status_code = tonumber(http_result.status_code)
-        if status_code == 200 and http_result.body and #http_result.body > 0 then
-            print('=== API succeeded with attempt', i, 'got', #http_result.body, 'bytes')
+        if status_code == 200 and (custom_sink or (http_result.body and #http_result.body > 0)) then
+            print('=== API succeeded with attempt', i)
             return "success", http_result.body
         else
-            print('=== API attempt', i, 'failed - status:', status_code, 'body exists:', http_result.body ~= nil)
+            print('=== API attempt', i, 'failed - status:', status_code)
         end
         
         ::next_attempt::
@@ -388,8 +389,17 @@ local function fetch_with_api(url)
 end
 
 -- Main HTTP request function with three-tier fallback system
-function check_url(url)
+function check_url(url, custom_sink)
     print('=== DEBUG: check_url called with:', url)
+
+    if custom_sink then
+        print('=== Using custom sink, skipping external commands and LuaSocket')
+        local api_status, api_data = fetch_with_api(url, custom_sink)
+        if api_status == "success" then
+            return "success", api_data
+        end
+        return "network_error", nil
+    end
     
     -- Method 1: Try external commands (curl/wget) - most reliable
     local ext_status, ext_data = fetch_with_external_command(url)
@@ -420,7 +430,7 @@ function check_url(url)
     return "network_error", nil
 end
 
-function scraper(query)
+function scraper(query, page_num)
     -- Get current Anna's Archive domains from Wikipedia (with caching)
     local aa_domains = get_annas_archive_domains()
     
@@ -429,13 +439,13 @@ function scraper(query)
     local domain_counter = 0
     local protocols = {"https://"}
     local protocol_counter = 1
-    local page = "1"
+    local page = tostring(page_num or 1)
 
     if not query then
         query = ''
     end
 
-    print('got query: ', query)
+    print('got query: ', query, 'page:', page)
 
     local encoded_query = string.gsub(query, " ", "+")
     local languages = Config.getSearchLanguages()
@@ -624,7 +634,7 @@ function save_file_bytes(path, bytes)
 end
 
 -- Download book from Library Genesis mirrors
-function download_book(book, path)
+function download_book(book, path, progress_callback)
     -- Try different Library Genesis mirrors
     local lgli_exts = {
         ".la/",
@@ -687,26 +697,53 @@ function download_book(book, path)
             local download_url = base .. download_link
             print("=== Final download URL: " .. download_url)
 
-            local dl_status, dl_data = check_url(download_url)
+            local temp_filename = filename .. ".tmp"
+            local f = io.open(temp_filename, "wb")
+            local written = 0
+            
+            local custom_sink = function(chunk, err)
+                if chunk then
+                    written = written + #chunk
+                    f:write(chunk)
+                    if progress_callback then progress_callback(written) end
+                end
+                return 1
+            end
 
-            if dl_status ~= "success" or not dl_data then
+            local dl_status, _ = check_url(download_url, custom_sink)
+            f:close()
+
+            if dl_status ~= "success" then
                 print("=== File download failed on " .. lgli_url .. ", trying next mirror")
+                os.remove(temp_filename)
                 goto continue_mirror
             end
 
-            -- Reject HTML error pages saved as book files (too small or is HTML)
-            local header = dl_data:sub(1, 16):lower()
-            local is_html = header:match("^<!doctyp") or header:match("^<html") or header:match("^<?xml")
-            local too_small = (#dl_data < 10240)  -- under 10 kB is always an error page
+            -- Now read the temp file to check magic bytes
+            local tf = io.open(temp_filename, "rb")
+            if not tf then
+                print("=== Could not open temp file")
+                goto continue_mirror
+            end
+            
+            local header = tf:read(16) or ""
+            local file_size = tf:seek("end") or 0
+            tf:close()
+
+            -- Reject HTML error pages
+            local header_lower = header:lower()
+            local is_html = header_lower:match("^<!doctyp") or header_lower:match("^<html") or header_lower:match("^<?xml")
+            local too_small = (file_size < 10240)  -- under 10 kB is an error page
 
             if is_html or too_small then
                 print(string.format("=== Rejected bad file from %s: %d bytes, is_html=%s",
-                    lgli_url, #dl_data, tostring(is_html)))
+                    lgli_url, file_size, tostring(is_html)))
+                os.remove(temp_filename)
                 goto continue_mirror
             end
 
             -- Validate magic bytes for known formats
-            local file_header = dl_data:sub(1, 8)
+            local file_header = header:sub(1, 8)
             local valid = true
             if fmt == "epub" or fmt == "zip" or fmt == "cbz" or fmt == "azw3" then
                 valid = (file_header:sub(1,2) == "PK")
@@ -721,18 +758,14 @@ function download_book(book, path)
             end
 
             if not valid then
+                os.remove(temp_filename)
                 goto continue_mirror
             end
 
-            -- All checks passed — save file
-            local ok, msg = save_file_bytes(filename, dl_data)
-            if ok then
-                print(string.format("=== Download success: %s (%d bytes)", filename, #dl_data))
-                return filename
-            else
-                pcall(os.remove, filename)
-                return "Failed, could not save file: " .. tostring(msg)
-            end
+            -- All checks passed — rename temp file to actual file
+            os.rename(temp_filename, filename)
+            print(string.format("=== Download success: %s (%d bytes)", filename, file_size))
+            return filename
         end
 
         ::continue_mirror::

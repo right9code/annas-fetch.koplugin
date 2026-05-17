@@ -148,14 +148,12 @@ function Ui.showSettingsDialog()
     local foo, _ = util.splitFilePathName(full_source_path):gsub("/+", "/")
     local plugin_path, _ = foo:gsub("/annas/", "")
 
-    dialog = ButtonDialog:new{
-        title = T("Settings"),
-        input = def_input,
-        buttons = {
-            {{
+    local settings_menu
+    local menu_items = {
+        {
             text = T("Refresh Mirrors"),
+            help_text = T("Fetch the latest active domains from Wikipedia."),
             callback = function()
-                _closeAndUntrackDialog(dialog)
                 local loading_msg = Ui.showLoadingMessage(T("Fetching latest mirrors from Wikipedia..."))
                 UIManager:nextTick(function()
                     local ok, msg = force_refresh_domains()
@@ -167,30 +165,53 @@ function Ui.showSettingsDialog()
                     end
                 end)
             end,
-            }},{{
+        },
+        {
             text = T("Set Download Directory"),
+            help_text = T("Change where downloaded books are saved."),
             callback = function()
-                _closeAndUntrackDialog(dialog)
                 Ui.showDownloadDirectoryDialog()
             end,
-            }},{{
+        },
+        {
             text = T("Check for Updates"),
-            keep_menu_open = false,
-            separator = true,
+            help_text = T("Check GitHub for newer versions of this plugin."),
             callback = function()
-                
-                _closeAndUntrackDialog(dialog)
                 if plugin_path then
                     Ota.startUpdateProcess(plugin_path)
                 else
-                    logger.err("ZLibrary: Plugin path not available for OTA update.")
+                    logger.err("Annas: Plugin path not available for OTA update.")
                     Ui.showErrorMessage(T("Error: Plugin path not found. Cannot check for updates."))
                 end
             end,
-            }}
+        },
+        {
+            text = "---", -- separator
+        },
+        {
+            text = T("Back"),
+            mandatory = "\u{21A9}",
+            callback = function()
+                if settings_menu then UIManager:close(settings_menu) end
+            end,
         }
     }
-    _showAndTrackDialog(dialog)
+
+    settings_menu = Menu:new{
+        title = T("Anna's Archive Settings"),
+        item_table = menu_items,
+        show_captions = true,
+        is_popout = false,
+        is_borderless = true,
+        title_bar_fm_style = true,
+        title_bar_left_icon = "copt_b_left_arrow",
+    }
+    
+    function settings_menu:onLeftButtonTap()
+        UIManager:close(self)
+    end
+
+    _showAndTrackDialog(settings_menu)
 end
 
 local function _showMultiSelectionDialog(parent_ui, title, setting_key, options_list, ok_callback, is_single)
@@ -471,7 +492,7 @@ function Ui.createBookMenuItem(book_data, parent_annas_instance)
     }
 end
 
-function Ui.createSearchResultsMenu(parent_ui_ref, query_string, initial_menu_items)
+function Ui.createSearchResultsMenu(parent_ui_ref, query_string, initial_menu_items, on_goto_page_handler)
     local search_order_name = Config.getSearchOrderName()
     local menu = Menu:new{
         title = _colon_concat(T("Search Results"), query_string),
@@ -480,6 +501,7 @@ function Ui.createSearchResultsMenu(parent_ui_ref, query_string, initial_menu_it
         parent = parent_ui_ref,
         items_per_page = 10,
         show_captions = true,
+        onGotoPage = on_goto_page_handler,
         is_popout = false,
         is_borderless = true,
         title_bar_fm_style = true,

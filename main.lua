@@ -509,6 +509,8 @@ function Annas:performSearch(query)
 
         logger.info(string.format("Annas:performSearch - Fetch successful. Results: %d", #res))
         self.current_search_query = query
+        self.current_search_api_page_loaded = 1
+        self.has_more_api_results = true
         self.all_search_results_data = res
 
         UIManager:nextTick(function()
@@ -545,7 +547,65 @@ function Annas:displaySearchResults(initial_book_data_list, query_string)
         self.active_results_menu = nil
     end
 
-    self.active_results_menu = Ui.createSearchResultsMenu(self.ui, query_string, menu_items)
+    local function on_goto_page_handler(menu_instance, new_page_number)
+        menu_instance.prev_focused_path = nil
+        menu_instance.page = new_page_number
+
+        local is_last_page_of_current_items = (new_page_number == menu_instance.page_num)
+
+        if is_last_page_of_current_items and self.has_more_api_results then
+            local next_api_page_to_fetch = self.current_search_api_page_loaded + 1
+            logger.info(string.format("Annas: Reached UI page %d. Fetching Anna's Archive page %d.", new_page_number, next_api_page_to_fetch))
+
+            local loading_msg_more = Ui.showLoadingMessage(string.format(T("Fetching more results (Page %s)..."), next_api_page_to_fetch))
+
+            local task_load_more = function()
+                return scraper(self.current_search_query, next_api_page_to_fetch)
+            end
+
+            local on_success_load_more = function(scraper_result)
+                Ui.closeMessage(loading_msg_more)
+                
+                if type(scraper_result) == "string" then
+                    -- Error returned from scraper
+                    Ui.showErrorMessage(Ui.colonConcat(T("Failed to fetch more results"), scraper_result))
+                    return
+                end
+
+                if type(scraper_result) == "table" and #scraper_result > 0 then
+                    logger.info(string.format("Annas: Adding %d new books.", #scraper_result))
+                    self.current_search_api_page_loaded = next_api_page_to_fetch
+
+                    local new_menu_items_to_add = {}
+                    for _, book_data in ipairs(scraper_result) do
+                        table.insert(self.all_search_results_data, book_data)
+                        table.insert(new_menu_items_to_add, Ui.createBookMenuItem(book_data, self))
+                    end
+                    Ui.appendSearchResultsToMenu(menu_instance, new_menu_items_to_add)
+                else
+                    logger.info("Annas: No more results returned by scraper.")
+                    self.has_more_api_results = false
+                    Ui.showInfoMessage(T("End of search results reached."))
+                    menu_instance:updateItems(1, true)
+                end
+            end
+
+            local on_error_load_more = function(err_msg)
+                Ui.closeMessage(loading_msg_more)
+                Ui.showErrorMessage(Ui.colonConcat(T("Failed to load more results"), tostring(err_msg)))
+            end
+
+            AsyncHelper.run(task_load_more, on_success_load_more, on_error_load_more, loading_msg_more)
+        else
+            if is_last_page_of_current_items and not self.has_more_api_results then
+                logger.info("Annas: Reached last page, and no more results to load.")
+            end
+            menu_instance:updateItems(1, true)
+        end
+        return true
+    end
+
+    self.active_results_menu = Ui.createSearchResultsMenu(self.ui, query_string, menu_items, on_goto_page_handler)
 end
 
 function Annas:downloadBook(book)
@@ -597,8 +657,25 @@ function Annas:downloadBook(book)
         local loading_msg = Ui.showLoadingMessage(T("Downloading, please wait …"))
 
         local function task_download()
-            --return Api.downloadBook(download_url, target_filepath, user_session and user_session.user_id, user_session and user_session.user_key, referer_url)
-            return download_book(book, target_dir)
+            local last_update_time = 0
+            
+            local progress_callback = function(written_bytes)
+                local current_time = os.time()
+                -- Update UI at most once per second to prevent flickering/lag
+                if current_time - last_update_time >= 1 then
+                    local mb = string.format("%.1f", written_bytes / (1024 * 1024))
+                    local text = string.format("%s\n%s MB", T("Downloading, please wait …"), mb)
+                    UIManager:nextTick(function()
+                        if loading_msg then
+                            loading_msg:setText(text)
+                            UIManager:setDirty(nil, "ui")
+                        end
+                    end)
+                    last_update_time = current_time
+                end
+            end
+            
+            return download_book(book, target_dir, progress_callback)
         end
 
         local function on_success_download(api_result)
