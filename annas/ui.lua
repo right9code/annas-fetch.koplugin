@@ -77,7 +77,7 @@ function Ui.showLoadingMessage(text)
     return message
 end
 
-function Ui.showBookDownloadProgress(book, custom_title)
+function Ui.showBookDownloadProgress(book, custom_title, on_cancel)
     local title = custom_title or T("Downloading…")
     
     local ok, ProgressbarDialog = pcall(require, "ui/widget/progressbardialog")
@@ -101,7 +101,10 @@ function Ui.showBookDownloadProgress(book, custom_title)
             title = title,
             subtitle = string.format("%s (%s)", book.title, size_str),
             progress_max = max_bytes,
-            refresh_time_seconds = 1
+            refresh_time_seconds = 1,
+            dismissable = true,
+            dismiss_text = T("Cancel download?"),
+            dismiss_callback = on_cancel,
         }
         
         -- fix progress bar fill color on Koreader 2025.08+

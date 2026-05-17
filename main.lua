@@ -654,18 +654,20 @@ function Annas:downloadBook(book)
         local user_session = Config.getUserSession()
         local referer_url = book.href and Config.getBookUrl(book.href) or nil
 
-        local loading_msg, pb_callback = Ui.showBookDownloadProgress(book)
+        local is_cancelled = false
+        local on_cancel = function()
+            is_cancelled = true
+        end
+
+        local loading_msg, pb_callback = Ui.showBookDownloadProgress(book, nil, on_cancel)
 
         local function task_download()
             local last_update_time = 0
             
             local progress_callback = function(written_bytes)
                 if pb_callback then
-                    -- If we have the native progress bar, use its report callback
-                    UIManager:nextTick(function()
-                        pb_callback(written_bytes)
-                        UIManager:setDirty(nil, "ui")
-                    end)
+                    -- Call directly to avoid flooding the event loop with nextTick
+                    pb_callback(written_bytes)
                 else
                     -- Fallback to InfoMessage text updating
                     local current_time = os.time()
@@ -683,7 +685,9 @@ function Annas:downloadBook(book)
                 end
             end
             
-            return download_book(book, target_dir, progress_callback)
+            local is_cancelled_func = function() return is_cancelled end
+            
+            return download_book(book, target_dir, progress_callback, is_cancelled_func)
         end
 
         local function on_success_download(api_result)

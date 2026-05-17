@@ -634,7 +634,7 @@ function save_file_bytes(path, bytes)
 end
 
 -- Download book from Library Genesis mirrors
-function download_book(book, path, progress_callback)
+function download_book(book, path, progress_callback, is_cancelled_func)
     -- Try different Library Genesis mirrors
     local lgli_exts = {
         ".la/",
@@ -702,6 +702,10 @@ function download_book(book, path, progress_callback)
             local written = 0
             
             local custom_sink = function(chunk, err)
+                if is_cancelled_func and is_cancelled_func() then
+                    return nil, "cancelled"
+                end
+                
                 if chunk then
                     written = written + #chunk
                     f:write(chunk)
@@ -712,6 +716,12 @@ function download_book(book, path, progress_callback)
 
             local dl_status, _ = check_url(download_url, custom_sink)
             f:close()
+
+            if is_cancelled_func and is_cancelled_func() then
+                print("=== Download cancelled by user")
+                os.remove(temp_filename)
+                return "Failed, download cancelled by user."
+            end
 
             if dl_status ~= "success" then
                 print("=== File download failed on " .. lgli_url .. ", trying next mirror")
