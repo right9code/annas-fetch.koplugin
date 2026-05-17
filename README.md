@@ -23,8 +23,8 @@ Tested on Kindle Paperwhite 11th gen running KOReader.
 ## Installation
 
 1. Download the latest release zip from the [Releases](https://github.com/right9code/annas-fetch/releases) page
-2. Extract and rename the folder to `annas.koplugin` (remove any version suffix)
-3. Copy `annas.koplugin/` to `koreader/plugins/` on your device
+2. Extract and rename the folder to `annas-fetch.koplugin` (remove any version suffix)
+3. Copy `annas-fetch.koplugin/` to `koreader/plugins/` on your device
 4. Restart KOReader
 
 > ⚠️ **If you have Z-Library plugin installed too** — this fork fixes the conflict. You do NOT need to remove either plugin.
