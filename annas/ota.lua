@@ -212,7 +212,7 @@ function Ota.installUpdate(zip_filepath, plugin_base_path)
 
     local unpacked_dir = nil
     for entry in lfs.dir("plugins") do
-        if entry:match("^fischer") then
+        if entry:match("^right9code") then
             unpacked_dir = "plugins/" .. entry
             break
         end
