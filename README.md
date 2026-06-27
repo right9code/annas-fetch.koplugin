@@ -16,7 +16,10 @@ Tested on Kindle Paperwhite 11th gen running KOReader.
 - ✅ **Gesture Shortcuts**: Easily assign a gesture shortcut (like a corner tap) to directly open the Anna's Archive Search box.
 - ✅ **Pure Lua Streaming**: Downloads stream directly to disk without bloating RAM, working consistently across all KOReader-supported devices (Kobo/PocketBook).
 - ✅ **Fresh codebase**: Clean git history, actively maintained, and fully purged of old Z-Library remnants.
-- ✅ Version: `1.0.0`
+- ✅ **Custom Mirror URL**: Set a specific Anna's Archive domain/mirror from Settings for regions where the default domain is blocked.
+- ✅ **Security hardening**: All shell commands use proper quoting to prevent injection; domain cache moved to KOReader's data directory.
+- ✅ **Stability fixes**: Restored reliable book metadata extraction (title/author/format), fixed cache directory creation, replaced debug `print()` with proper logging.
+- ✅ Version: `1.1.0`
 
 ---
 
@@ -34,7 +37,7 @@ Tested on Kindle Paperwhite 11th gen running KOReader.
 ## Usage
 
 1. Open the KOReader file browser
-2. Go to the **Search** menu → **Anna's Archive**
+2. Go to the **Search** menu → **Annas Fetch**
 3. Type your search query, adjust language/format filters, and tap **Search**
 4. Tap a result → tap **Format: (tap to download)** → confirm with **Download**
 

@@ -22,14 +22,14 @@ local DialogManager = require("annas.dialog_manager")
 require('src.scraper')
 
 local Annas = WidgetContainer:extend{
-    name = T("Anna's Archive"),
+    name = T("Annas Fetch"),
     is_doc_only = false,
     plugin_path = nil,
     dialog_manager = nil,
 }
 
 function Annas:onDispatcherRegisterActions()
-    Dispatcher:registerAction("annas_search", { category="none", event="AnnasSearch", title=T("Anna's Archive search"), general=true,})
+    Dispatcher:registerAction("annas_search", { category="none", event="AnnasSearch", title=T("Annas Fetch search"), general=true,})
 end
 
 function Annas:init()
@@ -72,7 +72,7 @@ function Annas:addToMainMenu(menu_items)
     if not self.ui.view then
         menu_items.annas_archive_main = {
             sorting_hint = "search",
-            text = T("Anna's Archive"),
+            text = T("Annas Fetch"),
             callback = function()
                 Ui.showSearchDialog(self)
             end,

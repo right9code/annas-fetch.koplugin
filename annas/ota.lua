@@ -129,7 +129,6 @@ function Ota.fetchLatestReleaseInfo()
     end
 
     logger.info("Annas:Ota.fetchLatestReleaseInfo - END (Success)")
-    print(#data)
     result.release_info = data
     return result
 end
@@ -187,11 +186,17 @@ function Ota.installUpdate(zip_filepath, plugin_base_path)
 
     _show_ota_status_loading(T("Installing update..."))
 
+    -- Shell-safe quoting helper
+    local function shell_quote(s)
+        return "'" .. s:gsub("'", "'\\''") .. "'"
+    end
+
     --local target_unzip_dir = DataStorage:getDataDir()
-    local target_unzip_dir = 'plugins/'
+    local target_unzip_dir = "plugins/"
     local excluded_file_path_in_zip = "plugins/annas-fetch/annas_credentials.lua"
 
-    local unzip_command = string.format("unzip -o '%s' -d '%s' -x '%s'", zip_filepath, target_unzip_dir, excluded_file_path_in_zip)
+    local unzip_command = string.format("unzip -o %s -d %s -x %s",
+        shell_quote(zip_filepath), shell_quote(target_unzip_dir), shell_quote(excluded_file_path_in_zip))
     logger.info("Annas:Ota.installUpdate - Executing: " .. unzip_command)
 
     local ok, err_code, err_msg_os = os.execute(unzip_command)
@@ -225,12 +230,12 @@ function Ota.installUpdate(zip_filepath, plugin_base_path)
 
         local mv_ok, mv_err = os.rename(unpacked_dir, 'plugins/annas-fetch')
         if not mv_ok then
-            print("Failed to move:", mv_err)
+            logger.warn("Annas:Ota.installUpdate - Failed to move unpacked dir: " .. tostring(mv_err))
         else
-            print("Moved successfully!")
+            logger.info("Annas:Ota.installUpdate - Moved unpacked dir successfully")
         end
     else
-        print('Could not find extracted update files.')
+        logger.warn("Annas:Ota.installUpdate - Could not find extracted update files.")
     end
 
     local rm_ok, rm_err = os.remove(zip_filepath)
@@ -299,17 +304,6 @@ function Ota.startUpdateProcess(plugin_path_from_main)
         return
     end
     logger.info("Annas:Ota.startUpdateProcess - GitHub tag: " .. latest_version_tag .. ", Normalized latest version: " .. normalized_latest_version)
-
-    --[[if not assets or type(assets) ~= "table" or #assets == 0 then
-        for k,v in pairs(release_info) do
-            print(tostring(k).." = "..tostring(v))
-        end
-        print(release_info)
-        print(release_info[1])
-        logger.warn("Annas:Ota.startUpdateProcess - Invalid or missing assets in release information.")
-        _show_ota_final_message(T("Could not find update files."), true)
-        return
-    end]]--
 
     if not release_info.zipball_url then
         logger.warn("Annas:Ota.startUpdateProcess - No download URL found in the first release asset.")

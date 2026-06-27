@@ -2,6 +2,7 @@ local util = require("util")
 local md5 = require("ffi/sha2").md5
 local DataStorage = require("datastorage")
 local LuaSettings = require("luasettings")
+local logger = require("logger")
 
 -- default cache lifetime: 5 days
 local DEF_CACHE_EXPIRY = 432000
@@ -50,7 +51,8 @@ function Cache:_ensureInit()
         if not util.directoryExists(dir) then
             util.makePath(dir)
             if not util.directoryExists(dir) then
-                os.execute(string.format('"mkdir -p "%s"', dir))
+                logger.warn("Cache: util.makePath failed, falling back to os.execute")
+                os.execute(string.format('mkdir -p %q', dir))
             end
         end
     end

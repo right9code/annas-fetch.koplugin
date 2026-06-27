@@ -14,7 +14,6 @@ local Api = require("annas.api")
 local Ota = require("annas.ota")
 local AsyncHelper = require("annas.async_helper")
 require('src.scraper')
-require('src.update')
 local Ui = {}
 
 local _plugin_instance = nil
@@ -179,6 +178,56 @@ function Ui.showSimpleMessageDialog(title, text)
     end
 end
 
+function Ui.showCustomMirrorUrlDialog()
+    local current_url = Config.getSetting(Config.SETTINGS_CUSTOM_MIRROR_KEY) or ""
+    local dialog
+
+    dialog = InputDialog:new{
+        title = T("Custom Mirror URL"),
+        description = T("Enter a custom Anna's Archive mirror URL (e.g. https://annas-archive.org). Leave empty to use auto-detected mirrors."),
+        input = current_url,
+        buttons = {{
+            {
+                text = T("Cancel"),
+                id = "close",
+                callback = function() _closeAndUntrackDialog(dialog) end,
+            },
+            {
+                text = T("Clear"),
+                callback = function()
+                    Config.deleteSetting(Config.SETTINGS_CUSTOM_MIRROR_KEY)
+                    _closeAndUntrackDialog(dialog)
+                    Ui.showInfoMessage(T("Custom mirror URL cleared. Using auto-detected mirrors."))
+                end,
+            },
+            {
+                text = T("Save"),
+                callback = function()
+                    local raw_input = dialog:getInputText() or ""
+                    local trimmed = util.trim(raw_input)
+                    if trimmed == "" then
+                        Config.deleteSetting(Config.SETTINGS_CUSTOM_MIRROR_KEY)
+                        _closeAndUntrackDialog(dialog)
+                        Ui.showInfoMessage(T("Custom mirror URL cleared. Using auto-detected mirrors."))
+                    else
+                        -- Normalize: ensure https:// prefix
+                        if not trimmed:match("^https?://") then
+                            trimmed = "https://" .. trimmed
+                        end
+                        -- Remove trailing slash
+                        trimmed = trimmed:gsub("/+$", "")
+                        Config.saveSetting(Config.SETTINGS_CUSTOM_MIRROR_KEY, trimmed)
+                        _closeAndUntrackDialog(dialog)
+                        Ui.showInfoMessage(string.format(T("Custom mirror URL set to: %s"), trimmed))
+                    end
+                end,
+            },
+        }},
+    }
+    _showAndTrackDialog(dialog)
+    dialog:onShowKeyboard()
+end
+
 function Ui.showDownloadDirectoryDialog()
     local current_dir = Config.getSetting(Config.SETTINGS_DOWNLOAD_DIR_KEY)
     DownloadMgr:new{
@@ -216,11 +265,17 @@ function Ui.showSettingsDialog()
                     local ok, msg = force_refresh_domains()
                     Ui.closeMessage(loading_msg)
                     if ok then
-                        Ui.showFullTextDialog(T("Mirrors Refreshed"), msg)
+                        Ui.showInfoMessage(msg)
                     else
                         Ui.showErrorMessage(msg)
                     end
                 end)
+            end,
+            }},{{
+            text = T("Custom Mirror URL"),
+            callback = function()
+                _closeAndUntrackDialog(dialog)
+                Ui.showCustomMirrorUrlDialog()
             end,
             }},{{
             text = T("Set Download Directory"),
@@ -489,7 +544,7 @@ function Ui.showSearchDialog(parent_annas, def_input, Ota)
             keep_menu_open = true,
             callback = function()
                 _closeAndUntrackDialog(dialog)
-                print("show settings")
+                logger.dbg("Ui: showing settings dialog")
                 Ui.showSettingsDialog(Ota)
             end,
         }},{{
